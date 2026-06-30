@@ -3,7 +3,7 @@ import CodeMirror, { keymap, ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
 import { javascript } from "@codemirror/lang-javascript";
 import { oneDark } from "@codemirror/theme-one-dark";
-import { autocompletion } from "@codemirror/autocomplete";
+import { autocompletion, completeAnyWord } from "@codemirror/autocomplete";
 import { defaultKeymap } from "@codemirror/commands";
 import {
   errorHighlighter,
@@ -530,7 +530,10 @@ export default function App() {
       ? python()
       : javascript({ jsx: false, typescript: false }),
     autocompletion({
-      override: [lang === "python" ? pythonCompletions : jsCompletions],
+      override: [
+        lang === "python" ? pythonCompletions : jsCompletions,
+        completeAnyWord
+      ],
       activateOnTyping: true,
     }),
     errorHighlighter,
