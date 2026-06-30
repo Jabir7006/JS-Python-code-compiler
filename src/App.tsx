@@ -295,6 +295,13 @@ export default function App() {
           })
           .then((py) => {
             if (!alive) return;
+            // Intercept Python input()
+            py.setStdin({
+              stdin: () => {
+                const userInput = window.prompt("Python input:");
+                return userInput !== null ? userInput + "\n" : "\n";
+              }
+            });
             setPyodide(py);
             setIsLoading(false);
             push("Python 3.12 ready.", "system");
