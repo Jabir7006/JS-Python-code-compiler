@@ -1,10 +1,11 @@
 import { useEffect, useState, useRef, useCallback } from "react";
-import CodeMirror, { keymap } from "@uiw/react-codemirror";
+import CodeMirror, { keymap, ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
 import { javascript } from "@codemirror/lang-javascript";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { autocompletion } from "@codemirror/autocomplete";
 import { defaultKeymap } from "@codemirror/commands";
+import { errorHighlighter, errorLineTheme, setErrorLine } from "./errorHighlighter";
 import {
   Play,
   Trash2,
@@ -239,6 +240,32 @@ export default function App() {
   const outputEndRef = useRef<HTMLDivElement>(null);
   const codeRef = useRef({ python: PY_STARTER, javascript: JS_STARTER });
   const saveInputRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<ReactCodeMirrorRef>(null);
+
+  const clearErrorHighlight = useCallback(() => {
+    const view = editorRef.current?.view;
+    if (view) view.dispatch({ effects: setErrorLine.of(null) });
+  }, []);
+
+  const highlightErrorLine = useCallback((errorStr: string, isPython: boolean) => {
+    const view = editorRef.current?.view;
+    if (!view) return;
+
+    let lineNum: number | null = null;
+    if (isPython) {
+      // Python traceback often has: File "<exec>", line X
+      const match = errorStr.match(/line (\d+)/i);
+      if (match) lineNum = parseInt(match[1], 10);
+    } else {
+      // JS eval often has: <anonymous>:X:Y
+      const match = errorStr.match(/<anonymous>:(\d+)/i);
+      if (match) lineNum = parseInt(match[1], 10);
+    }
+
+    if (lineNum !== null && lineNum > 0) {
+      view.dispatch({ effects: setErrorLine.of(lineNum) });
+    }
+  }, []);
 
   const code = lang === "python" ? pyCode : jsCode;
   const setCode = lang === "python" ? setPyCode : setJsCode;
@@ -300,10 +327,14 @@ export default function App() {
 
       if (lang === "javascript") {
         setIsRunning(true);
+        clearErrorHighlight();
         try {
           const { stdout, stderr } = await runJavaScript(toRun);
           if (stdout) push(stdout, "stdout");
-          if (stderr) push(stderr, "stderr");
+          if (stderr) {
+            push(stderr, "stderr");
+            highlightErrorLine(stderr, false);
+          }
           if (!stdout && !stderr)
             push("Ran successfully (no output).", "system");
         } finally {
@@ -314,6 +345,7 @@ export default function App() {
 
       if (!pyodide) return;
       setIsRunning(true);
+      clearErrorHighlight();
       try {
         await pyodide.runPythonAsync(INIT_SCRIPT);
         await pyodide.runPythonAsync(toRun);
@@ -327,7 +359,9 @@ export default function App() {
         if (err) push(err.replace(/\n$/, ""), "stderr");
         if (!out && !err) push("Ran successfully (no output).", "system");
       } catch (e: any) {
-        push(String(e), "stderr");
+        const errStr = String(e);
+        push(errStr, "stderr");
+        highlightErrorLine(errStr, true);
       } finally {
         setIsRunning(false);
       }
@@ -339,8 +373,9 @@ export default function App() {
     (val: string) => {
       setCode(val);
       codeRef.current[lang] = val;
+      clearErrorHighlight();
     },
-    [lang, setCode],
+    [lang, setCode, clearErrorHighlight],
   );
 
   const handleLoadExample = useCallback(
@@ -392,6 +427,8 @@ export default function App() {
       override: [lang === "python" ? pythonCompletions : jsCompletions],
       activateOnTyping: true,
     }),
+    errorHighlighter,
+    errorLineTheme,
     keymap.of([
       {
         key: "Ctrl-Enter",
@@ -608,6 +645,7 @@ export default function App() {
             </div>
             <div className="flex-1 min-h-0 overflow-hidden">
               <CodeMirror
+                ref={editorRef}
                 key={lang}
                 value={code}
                 height="100%"
