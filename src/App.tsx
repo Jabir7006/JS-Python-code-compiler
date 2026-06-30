@@ -47,7 +47,7 @@ import { pythonCompletions } from "./completions";
 import { jsCompletions } from "./jsCompletions";
 import { runJavaScript } from "./jsRunner";
 import { useSettings } from "./hooks/useSettings";
-import { explainErrorAI } from "./aiService";
+import { explainErrorAI, generateCodeSnippet } from "./aiService";
 import {
   getSnippets,
   saveSnippet,
@@ -249,6 +249,9 @@ export default function App() {
   const [showSave, setShowSave] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [showSettings, setShowSettings] = useState(false);
+  const [showGenerate, setShowGenerate] = useState(false);
+  const [generatePrompt, setGeneratePrompt] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
   const [explainingError, setExplainingError] = useState<string | null>(null);
   
   const { settings, updateSettings } = useSettings();
@@ -312,6 +315,32 @@ export default function App() {
       setExplainingError(null);
     }
   }, [explainingError, settings, lang, push]);
+
+  const handleGenerateCode = useCallback(async () => {
+    if (!generatePrompt.trim() || isGenerating) return;
+    setIsGenerating(true);
+    try {
+      const generatedCode = await generateCodeSnippet(generatePrompt, lang, settings);
+      const view = editorRef.current?.view;
+      if (view) {
+        const insertPos = view.state.selection.main.head;
+        view.dispatch({
+          changes: { from: insertPos, insert: generatedCode + "\n" },
+          selection: { anchor: insertPos + generatedCode.length + 1 }
+        });
+      } else {
+        setCode((prev) => prev + "\n" + generatedCode);
+        codeRef.current[lang] = codeRef.current[lang] + "\n" + generatedCode;
+      }
+      setShowGenerate(false);
+      setGeneratePrompt("");
+      push("✨ Code generated successfully.", "system");
+    } catch (e: any) {
+      push(`\n✨ Generation failed: ${e.message}`, "system");
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [generatePrompt, isGenerating, lang, settings, push, setCode]);
 
   useEffect(() => {
     let alive = true;
@@ -572,6 +601,43 @@ export default function App() {
               </SelectContent>
             </Select>
           )}
+
+          {/* Generate Code */}
+          <Dialog open={showGenerate} onOpenChange={setShowGenerate}>
+            <DialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 border-border/50 bg-muted/30 ml-2"
+                title="Generate Code with AI"
+              >
+                <Sparkles size={14} className="text-purple-400" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Generate Code</DialogTitle>
+                <DialogDescription>
+                  Describe what you want to build. The generated code will be inserted at your cursor.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <textarea 
+                  className="w-full h-32 p-3 text-sm rounded-md border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="E.g., Write a function that calculates the nth Fibonacci number..."
+                  value={generatePrompt}
+                  onChange={(e) => setGeneratePrompt(e.target.value)}
+                />
+                <Button 
+                  onClick={handleGenerateCode} 
+                  disabled={isGenerating || !generatePrompt.trim()}
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                >
+                  {isGenerating ? "Generating..." : "Generate ✨"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* Settings */}
           <Dialog open={showSettings} onOpenChange={setShowSettings}>
