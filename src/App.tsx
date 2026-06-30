@@ -554,9 +554,9 @@ export default function App() {
   return (
     <div className="flex flex-col h-screen w-full bg-background text-foreground font-sans overflow-hidden">
       {/* Header */}
-      <header className="flex-none h-13 border-b border-border flex items-center justify-between px-3 bg-card gap-2 flex-wrap">
+      <header className="flex-none h-14 border-b border-border/40 flex items-center justify-between px-4 bg-background/70 backdrop-blur-xl gap-2 flex-wrap z-10 shadow-sm relative">
         <div className="flex items-center gap-2 shrink-0">
-          <div className="h-7 w-7 rounded bg-primary/20 flex items-center justify-center text-primary border border-primary/30">
+          <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-primary border border-primary/20 shadow-inner">
             <TerminalSquare size={14} />
           </div>
           <span className="font-semibold text-xs tracking-widest hidden sm:block">
@@ -565,15 +565,15 @@ export default function App() {
         </div>
 
         {/* Language tabs */}
-        <div className="flex items-center gap-1 bg-muted/40 rounded-md p-0.5 border border-border/50">
+        <div className="flex items-center gap-1 bg-muted/30 rounded-lg p-1 border border-border/40 backdrop-blur-md">
           <button
             onClick={() => setLang("python")}
             data-testid="tab-python"
             className={
-              "px-3 py-1 rounded text-xs font-medium transition-all " +
+              "px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-300 " +
               (lang === "python"
-                ? "bg-primary text-primary-foreground shadow"
-                : "text-muted-foreground hover:text-foreground")
+                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/50")
             }
           >
             Python
@@ -582,10 +582,10 @@ export default function App() {
             onClick={() => setLang("javascript")}
             data-testid="tab-javascript"
             className={
-              "px-3 py-1 rounded text-xs font-medium transition-all " +
+              "px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-300 " +
               (lang === "javascript"
-                ? "bg-primary text-primary-foreground shadow"
-                : "text-muted-foreground hover:text-foreground")
+                ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/50")
             }
           >
             JavaScript
@@ -681,13 +681,12 @@ export default function App() {
             </DialogContent>
           </Dialog>
 
-          {/* Settings */}
           <Dialog open={showSettings} onOpenChange={setShowSettings}>
             <DialogTrigger asChild>
               <Button
                 variant="outline"
                 size="icon"
-                className="h-8 w-8 border-border/50 bg-muted/30 ml-2"
+                className="h-8 w-8 rounded-full border-border/40 bg-muted/20 ml-2 hover:bg-muted/50 transition-colors"
                 title="Settings"
               >
                 <SettingsIcon size={14} />
@@ -837,16 +836,16 @@ export default function App() {
                   disabled={isRunDisabled}
                   size="sm"
                   data-testid="button-run"
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-4 h-8 shadow-md shadow-primary/20 transition-all active:scale-95"
+                  className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold px-5 h-8 rounded-full shadow-lg shadow-violet-600/20 hover:shadow-violet-600/40 transition-all duration-300 hover:scale-[1.03] active:scale-95 border border-white/10"
                 >
                   {isRunning ? (
-                    <span className="flex items-center gap-1.5">
-                      <span className="h-3.5 w-3.5 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground animate-spin" />
+                    <span className="flex items-center gap-2">
+                      <span className="h-3.5 w-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
                       Running
                     </span>
                   ) : (
                     <span className="flex items-center gap-1.5">
-                      <Play size={12} fill="currentColor" />
+                      <Play size={13} fill="currentColor" />
                       Run
                     </span>
                   )}
@@ -867,9 +866,9 @@ export default function App() {
           <ResizablePanel
             defaultSize={50}
             minSize={20}
-            className="flex flex-col min-w-0 border-r border-border"
+            className="flex flex-col min-w-0 border-r border-border/40 relative"
           >
-            <div className="flex-none flex items-center justify-between px-3 h-8 bg-muted/20 border-b border-border text-xs font-mono text-muted-foreground">
+            <div className="flex-none flex items-center justify-between px-4 h-9 bg-muted/10 border-b border-border/30 text-xs font-mono text-muted-foreground shadow-sm z-10">
               <span className="text-primary font-semibold">
                 {lang === "python" ? "main.py" : "main.js"}
               </span>
@@ -919,16 +918,16 @@ export default function App() {
             </div>
           </ResizablePanel>
 
-          <ResizableHandle withHandle />
+          <ResizableHandle className="w-1.5 bg-border/40 hover:bg-primary/50 transition-colors duration-300" withHandle />
 
           {/* Output */}
           <ResizablePanel
             defaultSize={50}
             minSize={20}
-            className="flex flex-col min-w-0 bg-card"
+            className="flex flex-col min-w-0 bg-[#0f0f13] shadow-inner"
           >
-            <div className="flex-none flex items-center justify-between px-3 h-8 bg-muted/20 border-b border-border text-xs">
-              <span className="font-mono text-muted-foreground font-medium uppercase tracking-wider">
+            <div className="flex-none flex items-center justify-between px-4 h-9 bg-[#18181f]/80 border-b border-border/30 text-xs shadow-sm z-10 backdrop-blur-md">
+              <span className="font-mono text-muted-foreground/80 font-semibold uppercase tracking-widest text-[10px]">
                 Output
               </span>
               {output.length > 0 && (
