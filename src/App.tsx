@@ -924,9 +924,9 @@ export default function App() {
           <ResizablePanel
             defaultSize={50}
             minSize={20}
-            className="flex flex-col min-w-0 bg-[#0f0f13] shadow-inner"
+            className="flex flex-col min-w-0 bg-black/20 shadow-inner"
           >
-            <div className="flex-none flex items-center justify-between px-4 h-9 bg-[#18181f]/80 border-b border-border/30 text-xs shadow-sm z-10 backdrop-blur-md">
+            <div className="flex-none flex items-center justify-between px-4 h-9 bg-background/50 border-b border-border/30 text-xs shadow-sm z-10 backdrop-blur-md">
               <span className="font-mono text-muted-foreground/80 font-semibold uppercase tracking-widest text-[10px]">
                 Output
               </span>
