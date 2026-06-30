@@ -42,6 +42,11 @@ import {
   type Language,
   type Snippet,
 } from "./snippetStore";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
 
 declare global {
   interface Window {
@@ -586,119 +591,120 @@ export default function App() {
       </header>
 
       {/* Split view */}
-      <main className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        {/* Editor */}
-        <section className="flex-1 flex flex-col min-w-0 border-r border-border">
-          <div className="flex-none flex items-center justify-between px-3 h-8 bg-muted/20 border-b border-border text-xs font-mono text-muted-foreground">
-            <span className="text-primary font-semibold">
-              {lang === "python" ? "main.py" : "main.js"}
-            </span>
-            {editorReady && (
-              <span className="flex items-center gap-1 opacity-50">
-                <Check size={10} className="text-emerald-400" />
-                Ready
+      <main className="flex-1 min-h-0 overflow-hidden">
+        <ResizablePanelGroup direction="horizontal" className="h-full w-full">
+          {/* Editor */}
+          <ResizablePanel defaultSize={50} minSize={20} className="flex flex-col min-w-0 border-r border-border">
+            <div className="flex-none flex items-center justify-between px-3 h-8 bg-muted/20 border-b border-border text-xs font-mono text-muted-foreground">
+              <span className="text-primary font-semibold">
+                {lang === "python" ? "main.py" : "main.js"}
               </span>
-            )}
-          </div>
-          <div className="flex-1 min-h-0 overflow-hidden">
-            <CodeMirror
-              key={lang}
-              value={code}
-              height="100%"
-              theme={oneDark}
-              extensions={extensions}
-              onChange={handleChange}
-              onCreateEditor={() => setEditorReady(true)}
-              basicSetup={{
-                lineNumbers: true,
-                highlightActiveLineGutter: true,
-                highlightSpecialChars: true,
-                foldGutter: true,
-                dropCursor: false,
-                allowMultipleSelections: false,
-                indentOnInput: true,
-                bracketMatching: true,
-                closeBrackets: true,
-                autocompletion: false,
-                rectangularSelection: false,
-                crosshairCursor: false,
-                highlightActiveLine: true,
-                highlightSelectionMatches: true,
-                closeBracketsKeymap: true,
-                defaultKeymap: false,
-                searchKeymap: false,
-                historyKeymap: true,
-                foldKeymap: false,
-                completionKeymap: true,
-                lintKeymap: false,
-              }}
-              style={{ height: "100%", fontSize: "13.5px" }}
-              data-testid="editor"
-            />
-          </div>
-        </section>
+              {editorReady && (
+                <span className="flex items-center gap-1 opacity-50">
+                  <Check size={10} className="text-emerald-400" />
+                  Ready
+                </span>
+              )}
+            </div>
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <CodeMirror
+                key={lang}
+                value={code}
+                height="100%"
+                theme={oneDark}
+                extensions={extensions}
+                onChange={handleChange}
+                onCreateEditor={() => setEditorReady(true)}
+                basicSetup={{
+                  lineNumbers: true,
+                  highlightActiveLineGutter: true,
+                  highlightSpecialChars: true,
+                  foldGutter: true,
+                  dropCursor: false,
+                  allowMultipleSelections: false,
+                  indentOnInput: true,
+                  bracketMatching: true,
+                  closeBrackets: true,
+                  autocompletion: false,
+                  rectangularSelection: false,
+                  crosshairCursor: false,
+                  highlightActiveLine: true,
+                  highlightSelectionMatches: true,
+                  closeBracketsKeymap: true,
+                  defaultKeymap: false,
+                  searchKeymap: false,
+                  historyKeymap: true,
+                  foldKeymap: false,
+                  completionKeymap: true,
+                  lintKeymap: false,
+                }}
+                style={{ height: "100%", fontSize: "13.5px" }}
+                data-testid="editor"
+              />
+            </div>
+          </ResizablePanel>
 
-        {/* Output */}
-        <section
-          className="flex-1 flex flex-col min-w-0 bg-card"
-          style={{ maxWidth: "50%" }}
-        >
-          <div className="flex-none flex items-center justify-between px-3 h-8 bg-muted/20 border-b border-border text-xs">
-            <span className="font-mono text-muted-foreground font-medium uppercase tracking-wider">
-              Output
-            </span>
-            {output.length > 0 && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                onClick={() => setOutput([])}
-                data-testid="button-clear"
-                title="Clear output"
-              >
-                <Trash2 size={12} />
-              </Button>
-            )}
-          </div>
+          <ResizableHandle withHandle />
 
-          <div
-            className="flex-1 min-h-0 overflow-y-auto p-3 font-mono text-sm leading-relaxed"
-            data-testid="output-panel"
-          >
-            {output.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-muted-foreground/30 select-none gap-2">
-                <TerminalSquare size={36} />
-                <p className="text-xs">Output appears here</p>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                {output.map((line) => (
-                  <div key={line.id} className={lineClass(line.type)}>
-                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground/40 mb-0.5">
-                      <Clock size={9} />
-                      {line.timestamp.toLocaleTimeString([], {
-                        hour12: false,
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        second: "2-digit",
-                      })}
-                    </div>
-                    {line.type === "stderr" && (
-                      <div className="flex items-center gap-1 text-red-400 font-semibold text-[11px] mb-1 uppercase tracking-wider">
-                        <AlertCircle size={11} />
-                        Error
+          {/* Output */}
+          <ResizablePanel defaultSize={50} minSize={20} className="flex flex-col min-w-0 bg-card">
+            <div className="flex-none flex items-center justify-between px-3 h-8 bg-muted/20 border-b border-border text-xs">
+              <span className="font-mono text-muted-foreground font-medium uppercase tracking-wider">
+                Output
+              </span>
+              {output.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                  onClick={() => setOutput([])}
+                  data-testid="button-clear"
+                  title="Clear output"
+                >
+                  <Trash2 size={12} />
+                </Button>
+              )}
+            </div>
+
+            <div
+              className="flex-1 min-h-0 overflow-y-auto p-3 font-mono text-sm leading-relaxed"
+              data-testid="output-panel"
+            >
+              {output.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-muted-foreground/30 select-none gap-2">
+                  <TerminalSquare size={36} />
+                  <p className="text-xs">Output appears here</p>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {output.map((line) => (
+                    <div key={line.id} className={lineClass(line.type)}>
+                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground/40 mb-0.5">
+                        <Clock size={9} />
+                        {line.timestamp.toLocaleTimeString([], {
+                          hour12: false,
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          second: "2-digit",
+                        })}
                       </div>
-                    )}
-                    <pre className="whitespace-pre-wrap break-words text-[13px]">
-                      {line.content}
-                    </pre>
-                  </div>
-                ))}
-                <div ref={outputEndRef} />
-              </div>
-            )}
-          </div>
-        </section>
+                      {line.type === "stderr" && (
+                        <div className="flex items-center gap-1 text-red-400 font-semibold text-[11px] mb-1 uppercase tracking-wider">
+                          <AlertCircle size={11} />
+                          Error
+                        </div>
+                      )}
+                      <pre className="whitespace-pre-wrap break-words text-[13px]">
+                        {line.content}
+                      </pre>
+                    </div>
+                  ))}
+                  <div ref={outputEndRef} />
+                </div>
+              )}
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </main>
 
       {/* Status bar */}
