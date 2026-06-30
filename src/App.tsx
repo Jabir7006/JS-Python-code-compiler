@@ -17,6 +17,8 @@ import {
   X,
   BookOpen,
   Bookmark,
+  Settings as SettingsIcon,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,9 +35,19 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { pythonCompletions } from "./completions";
 import { jsCompletions } from "./jsCompletions";
 import { runJavaScript } from "./jsRunner";
+import { useSettings } from "./hooks/useSettings";
+import { explainErrorAI } from "./aiService";
 import {
   getSnippets,
   saveSnippet,
@@ -236,6 +248,10 @@ export default function App() {
   const [snippets, setSnippets] = useState<Snippet[]>(() => getSnippets());
   const [showSave, setShowSave] = useState(false);
   const [saveName, setSaveName] = useState("");
+  const [showSettings, setShowSettings] = useState(false);
+  const [explainingError, setExplainingError] = useState<string | null>(null);
+  
+  const { settings, updateSettings } = useSettings();
 
   const outputEndRef = useRef<HTMLDivElement>(null);
   const codeRef = useRef({ python: PY_STARTER, javascript: JS_STARTER });
@@ -283,6 +299,19 @@ export default function App() {
       },
     ]);
   }, []);
+
+  const handleExplainError = useCallback(async (errorText: string, lineId: string) => {
+    if (explainingError) return;
+    setExplainingError(lineId);
+    try {
+      const explanation = await explainErrorAI(errorText, codeRef.current[lang], settings);
+      push(`\n✨ AI Explanation:\n${explanation}`, "system");
+    } catch (e: any) {
+      push(`\n✨ AI Explanation failed: ${e.message}`, "system");
+    } finally {
+      setExplainingError(null);
+    }
+  }, [explainingError, settings, lang, push]);
 
   useEffect(() => {
     let alive = true;
@@ -544,6 +573,73 @@ export default function App() {
             </Select>
           )}
 
+          {/* Settings */}
+          <Dialog open={showSettings} onOpenChange={setShowSettings}>
+            <DialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 border-border/50 bg-muted/30 ml-2"
+                title="Settings"
+              >
+                <SettingsIcon size={14} />
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Settings</DialogTitle>
+                <DialogDescription>
+                  Configure AI providers for error explanations and autocomplete.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold">AI Provider</label>
+                  <Select
+                    value={settings.aiProvider}
+                    onValueChange={(val: any) => updateSettings({ aiProvider: val })}
+                  >
+                    <SelectTrigger className="text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gemini" className="text-xs">Google Gemini</SelectItem>
+                      <SelectItem value="groq" className="text-xs">Groq (Llama 3)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {settings.aiProvider === "gemini" && (
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold">Gemini API Key</label>
+                    <Input 
+                      type="password"
+                      value={settings.geminiApiKey} 
+                      onChange={(e) => updateSettings({ geminiApiKey: e.target.value })}
+                      placeholder="AIzaSy..." 
+                      className="text-xs font-mono"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Keys are stored locally in your browser.</p>
+                  </div>
+                )}
+
+                {settings.aiProvider === "groq" && (
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold">Groq API Key</label>
+                    <Input 
+                      type="password"
+                      value={settings.groqApiKey} 
+                      onChange={(e) => updateSettings({ groqApiKey: e.target.value })}
+                      placeholder="gsk_..." 
+                      className="text-xs font-mono"
+                    />
+                    <p className="text-[10px] text-muted-foreground">Keys are stored locally in your browser.</p>
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+
           {/* Save snippet */}
           {showSave ? (
             <div className="flex items-center gap-1">
@@ -737,9 +833,25 @@ export default function App() {
                         })}
                       </div>
                       {line.type === "stderr" && (
-                        <div className="flex items-center gap-1 text-red-400 font-semibold text-[11px] mb-1 uppercase tracking-wider">
-                          <AlertCircle size={11} />
-                          Error
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-1 text-red-400 font-semibold text-[11px] uppercase tracking-wider">
+                            <AlertCircle size={11} />
+                            Error
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-5 px-1.5 text-[10px] bg-red-950/40 hover:bg-red-900/40 text-red-300 gap-1 border border-red-900/50"
+                            onClick={() => handleExplainError(line.content, line.id)}
+                            disabled={explainingError === line.id}
+                          >
+                            {explainingError === line.id ? (
+                              <span className="h-2 w-2 rounded-full border-2 border-red-300/30 border-t-red-300 animate-spin" />
+                            ) : (
+                              <Sparkles size={10} />
+                            )}
+                            Explain Error
+                          </Button>
                         </div>
                       )}
                       <pre className="whitespace-pre-wrap break-words text-[13px]">
