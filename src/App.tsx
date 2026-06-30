@@ -445,24 +445,26 @@ export default function App() {
         if (err) push(err.replace(/\n$/, ""), "stderr");
         if (!out && !err) push("Ran successfully (no output).", "system");
       } catch (e: any) {
-        let errStr = "";
-        if (e && e.stack && e.stack.length > 20) {
-          errStr = e.stack;
-        } else if (e && e.message) {
-          errStr = e.message;
-        } else {
-          errStr = String(e);
-        }
+        let errStr = e.message || String(e);
 
-        // Sometimes Pyodide swallows the traceback into sys.stderr
+        // Try to get the actual Python traceback from sys.stderr
         try {
           if (pyodide) {
             const stderrStr = pyodide.runPython("sys.stderr.getvalue()");
-            if (stderrStr && !errStr.includes(stderrStr)) {
-              errStr += "\n\n(stderr output):\n" + stderrStr;
+            if (stderrStr && stderrStr.includes("Traceback")) {
+              errStr = stderrStr;
             }
           }
         } catch (_) {}
+
+        // If it's still a JS stack trace from Pyodide, clean out the WebAssembly 'at' frames
+        if (typeof errStr === "string" && errStr.includes("PythonError")) {
+          errStr = errStr
+            .split("\n")
+            .filter((line) => !line.trim().startsWith("at "))
+            .join("\n")
+            .trim();
+        }
 
         push(errStr, "stderr");
         highlightErrorLine(errStr, true);
