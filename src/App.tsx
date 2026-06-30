@@ -354,6 +354,9 @@ export default function App() {
       setIsRunning(true);
       clearErrorHighlight();
       try {
+        push("Installing required packages (if any)...", "system");
+        await pyodide.loadPackagesFromImports(toRun);
+        
         await pyodide.runPythonAsync(INIT_SCRIPT);
         await pyodide.runPythonAsync(toRun);
         const out: string = await pyodide.runPythonAsync(
