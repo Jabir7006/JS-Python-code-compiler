@@ -5,7 +5,11 @@ import { javascript } from "@codemirror/lang-javascript";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { autocompletion } from "@codemirror/autocomplete";
 import { defaultKeymap } from "@codemirror/commands";
-import { errorHighlighter, errorLineTheme, setErrorLine } from "./errorHighlighter";
+import {
+  errorHighlighter,
+  errorLineTheme,
+  setErrorLine,
+} from "./errorHighlighter";
 import {
   Play,
   Trash2,
@@ -253,7 +257,7 @@ export default function App() {
   const [generatePrompt, setGeneratePrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [explainingError, setExplainingError] = useState<string | null>(null);
-  
+
   const { settings, updateSettings } = useSettings();
 
   const outputEndRef = useRef<HTMLDivElement>(null);
@@ -266,25 +270,28 @@ export default function App() {
     if (view) view.dispatch({ effects: setErrorLine.of(null) });
   }, []);
 
-  const highlightErrorLine = useCallback((errorStr: string, isPython: boolean) => {
-    const view = editorRef.current?.view;
-    if (!view) return;
+  const highlightErrorLine = useCallback(
+    (errorStr: string, isPython: boolean) => {
+      const view = editorRef.current?.view;
+      if (!view) return;
 
-    let lineNum: number | null = null;
-    if (isPython) {
-      // Python traceback often has: File "<exec>", line X
-      const match = errorStr.match(/line (\d+)/i);
-      if (match) lineNum = parseInt(match[1], 10);
-    } else {
-      // JS eval often has: <anonymous>:X:Y
-      const match = errorStr.match(/<anonymous>:(\d+)/i);
-      if (match) lineNum = parseInt(match[1], 10);
-    }
+      let lineNum: number | null = null;
+      if (isPython) {
+        // Python traceback often has: File "<exec>", line X
+        const match = errorStr.match(/line (\d+)/i);
+        if (match) lineNum = parseInt(match[1], 10);
+      } else {
+        // JS eval often has: <anonymous>:X:Y
+        const match = errorStr.match(/<anonymous>:(\d+)/i);
+        if (match) lineNum = parseInt(match[1], 10);
+      }
 
-    if (lineNum !== null && lineNum > 0) {
-      view.dispatch({ effects: setErrorLine.of(lineNum) });
-    }
-  }, []);
+      if (lineNum !== null && lineNum > 0) {
+        view.dispatch({ effects: setErrorLine.of(lineNum) });
+      }
+    },
+    [],
+  );
 
   const code = lang === "python" ? pyCode : jsCode;
   const setCode = lang === "python" ? setPyCode : setJsCode;
@@ -303,30 +310,41 @@ export default function App() {
     ]);
   }, []);
 
-  const handleExplainError = useCallback(async (errorText: string, lineId: string) => {
-    if (explainingError) return;
-    setExplainingError(lineId);
-    try {
-      const explanation = await explainErrorAI(errorText, codeRef.current[lang], settings);
-      push(`\n✨ AI Explanation:\n${explanation}`, "system");
-    } catch (e: any) {
-      push(`\n✨ AI Explanation failed: ${e.message}`, "system");
-    } finally {
-      setExplainingError(null);
-    }
-  }, [explainingError, settings, lang, push]);
+  const handleExplainError = useCallback(
+    async (errorText: string, lineId: string) => {
+      if (explainingError) return;
+      setExplainingError(lineId);
+      try {
+        const explanation = await explainErrorAI(
+          errorText,
+          codeRef.current[lang],
+          settings,
+        );
+        push(`\n✨ AI Explanation:\n${explanation}`, "system");
+      } catch (e: any) {
+        push(`\n✨ AI Explanation failed: ${e.message}`, "system");
+      } finally {
+        setExplainingError(null);
+      }
+    },
+    [explainingError, settings, lang, push],
+  );
 
   const handleGenerateCode = useCallback(async () => {
     if (!generatePrompt.trim() || isGenerating) return;
     setIsGenerating(true);
     try {
-      const generatedCode = await generateCodeSnippet(generatePrompt, lang, settings);
+      const generatedCode = await generateCodeSnippet(
+        generatePrompt,
+        lang,
+        settings,
+      );
       const view = editorRef.current?.view;
       if (view) {
         const insertPos = view.state.selection.main.head;
         view.dispatch({
           changes: { from: insertPos, insert: generatedCode + "\n" },
-          selection: { anchor: insertPos + generatedCode.length + 1 }
+          selection: { anchor: insertPos + generatedCode.length + 1 },
         });
       } else {
         setCode((prev) => prev + "\n" + generatedCode);
@@ -358,7 +376,7 @@ export default function App() {
               stdin: () => {
                 const userInput = window.prompt("Python input:");
                 return userInput !== null ? userInput + "\n" : "\n";
-              }
+              },
             });
             setPyodide(py);
             setIsLoading(false);
@@ -414,7 +432,7 @@ export default function App() {
       try {
         push("Installing required packages (if any)...", "system");
         await pyodide.loadPackagesFromImports(toRun);
-        
+
         await pyodide.runPythonAsync(INIT_SCRIPT);
         await pyodide.runPythonAsync(toRun);
         const out: string = await pyodide.runPythonAsync(
@@ -427,7 +445,25 @@ export default function App() {
         if (err) push(err.replace(/\n$/, ""), "stderr");
         if (!out && !err) push("Ran successfully (no output).", "system");
       } catch (e: any) {
-        const errStr = String(e);
+        let errStr = "";
+        if (e && e.stack && e.stack.length > 20) {
+          errStr = e.stack;
+        } else if (e && e.message) {
+          errStr = e.message;
+        } else {
+          errStr = String(e);
+        }
+
+        // Sometimes Pyodide swallows the traceback into sys.stderr
+        try {
+          if (pyodide) {
+            const stderrStr = pyodide.runPython("sys.stderr.getvalue()");
+            if (stderrStr && !errStr.includes(stderrStr)) {
+              errStr += "\n\n(stderr output):\n" + stderrStr;
+            }
+          }
+        } catch (_) {}
+
         push(errStr, "stderr");
         highlightErrorLine(errStr, true);
       } finally {
@@ -618,18 +654,19 @@ export default function App() {
               <DialogHeader>
                 <DialogTitle>Generate Code</DialogTitle>
                 <DialogDescription>
-                  Describe what you want to build. The generated code will be inserted at your cursor.
+                  Describe what you want to build. The generated code will be
+                  inserted at your cursor.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-2">
-                <textarea 
+                <textarea
                   className="w-full h-32 p-3 text-sm rounded-md border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-ring"
                   placeholder="E.g., Write a function that calculates the nth Fibonacci number..."
                   value={generatePrompt}
                   onChange={(e) => setGeneratePrompt(e.target.value)}
                 />
-                <Button 
-                  onClick={handleGenerateCode} 
+                <Button
+                  onClick={handleGenerateCode}
                   disabled={isGenerating || !generatePrompt.trim()}
                   className="w-full bg-purple-600 hover:bg-purple-700 text-white"
                 >
@@ -655,7 +692,8 @@ export default function App() {
               <DialogHeader>
                 <DialogTitle>Settings</DialogTitle>
                 <DialogDescription>
-                  Configure AI providers for error explanations and autocomplete.
+                  Configure AI providers for error explanations and
+                  autocomplete.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-2">
@@ -663,43 +701,61 @@ export default function App() {
                   <label className="text-xs font-semibold">AI Provider</label>
                   <Select
                     value={settings.aiProvider}
-                    onValueChange={(val: any) => updateSettings({ aiProvider: val })}
+                    onValueChange={(val: any) =>
+                      updateSettings({ aiProvider: val })
+                    }
                   >
                     <SelectTrigger className="text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="gemini" className="text-xs">Google Gemini</SelectItem>
-                      <SelectItem value="groq" className="text-xs">Groq (Llama 3)</SelectItem>
+                      <SelectItem value="gemini" className="text-xs">
+                        Google Gemini
+                      </SelectItem>
+                      <SelectItem value="groq" className="text-xs">
+                        Groq (Llama 3)
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                
+
                 {settings.aiProvider === "gemini" && (
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold">Gemini API Key</label>
-                    <Input 
+                    <label className="text-xs font-semibold">
+                      Gemini API Key
+                    </label>
+                    <Input
                       type="password"
-                      value={settings.geminiApiKey} 
-                      onChange={(e) => updateSettings({ geminiApiKey: e.target.value })}
-                      placeholder="AIzaSy..." 
+                      value={settings.geminiApiKey}
+                      onChange={(e) =>
+                        updateSettings({ geminiApiKey: e.target.value })
+                      }
+                      placeholder="AIzaSy..."
                       className="text-xs font-mono"
                     />
-                    <p className="text-[10px] text-muted-foreground">Keys are stored locally in your browser.</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Keys are stored locally in your browser.
+                    </p>
                   </div>
                 )}
 
                 {settings.aiProvider === "groq" && (
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold">Groq API Key</label>
-                    <Input 
+                    <label className="text-xs font-semibold">
+                      Groq API Key
+                    </label>
+                    <Input
                       type="password"
-                      value={settings.groqApiKey} 
-                      onChange={(e) => updateSettings({ groqApiKey: e.target.value })}
-                      placeholder="gsk_..." 
+                      value={settings.groqApiKey}
+                      onChange={(e) =>
+                        updateSettings({ groqApiKey: e.target.value })
+                      }
+                      placeholder="gsk_..."
                       className="text-xs font-mono"
                     />
-                    <p className="text-[10px] text-muted-foreground">Keys are stored locally in your browser.</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Keys are stored locally in your browser.
+                    </p>
                   </div>
                 )}
               </div>
@@ -803,7 +859,11 @@ export default function App() {
       <main className="flex-1 min-h-0 overflow-hidden">
         <ResizablePanelGroup direction="horizontal" className="h-full w-full">
           {/* Editor */}
-          <ResizablePanel defaultSize={50} minSize={20} className="flex flex-col min-w-0 border-r border-border">
+          <ResizablePanel
+            defaultSize={50}
+            minSize={20}
+            className="flex flex-col min-w-0 border-r border-border"
+          >
             <div className="flex-none flex items-center justify-between px-3 h-8 bg-muted/20 border-b border-border text-xs font-mono text-muted-foreground">
               <span className="text-primary font-semibold">
                 {lang === "python" ? "main.py" : "main.js"}
@@ -857,7 +917,11 @@ export default function App() {
           <ResizableHandle withHandle />
 
           {/* Output */}
-          <ResizablePanel defaultSize={50} minSize={20} className="flex flex-col min-w-0 bg-card">
+          <ResizablePanel
+            defaultSize={50}
+            minSize={20}
+            className="flex flex-col min-w-0 bg-card"
+          >
             <div className="flex-none flex items-center justify-between px-3 h-8 bg-muted/20 border-b border-border text-xs">
               <span className="font-mono text-muted-foreground font-medium uppercase tracking-wider">
                 Output
@@ -908,7 +972,9 @@ export default function App() {
                             variant="ghost"
                             size="sm"
                             className="h-5 px-1.5 text-[10px] bg-red-950/40 hover:bg-red-900/40 text-red-300 gap-1 border border-red-900/50"
-                            onClick={() => handleExplainError(line.content, line.id)}
+                            onClick={() =>
+                              handleExplainError(line.content, line.id)
+                            }
                             disabled={explainingError === line.id}
                           >
                             {explainingError === line.id ? (

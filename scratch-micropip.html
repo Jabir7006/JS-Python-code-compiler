@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.27.0/full/pyodide.js"></script>
+</head>
+<body>
+  <script>
+    async function main() {
+      let pyodide = await loadPyodide();
+      try {
+        await pyodide.loadPackagesFromImports("import non_existent_package_123");
+        console.log("Success");
+      } catch (e) {
+        console.log("String(e):", String(e));
+        console.log("e.message:", e.message);
+        console.log("e.name:", e.name);
+      }
+    }
+    main();
+  </script>
+</body>
+</html>

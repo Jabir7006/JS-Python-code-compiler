@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.27.0/full/pyodide.js"></script>
+</head>
+<body>
+  <script>
+    async function main() {
+      let pyodide = await loadPyodide();
+      try {
+        await pyodide.loadPackagesFromImports("import definitely_does_not_exist_123");
+      } catch (e) {
+        document.body.innerHTML = `
+          <pre>
+            e.name: ${e.name}
+            ---
+            e.message: ${e.message}
+            ---
+            String(e): ${String(e)}
+            ---
+            e.stack: ${e.stack}
+          </pre>
+        `;
+      }
+    }
+    main();
+  </script>
+</body>
+</html>

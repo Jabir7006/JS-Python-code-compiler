@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.27.0/full/pyodide.js"></script>
+</head>
+<body>
+  <script>
+    async function main() {
+      let pyodide = await loadPyodide();
+      try {
+        await pyodide.loadPackagesFromImports("import argparser\nparser = argparse.ArgumentParser(description='This is test project')");
+        console.log("loadPackagesFromImports succeeded!");
+        await pyodide.runPythonAsync("import argparser\nparser = argparse.ArgumentParser(description='This is test project')");
+      } catch (e) {
+        document.body.innerHTML = `
+          <pre>
+            e.name: ${e.name}
+            ---
+            e.message: ${e.message}
+            ---
+            String(e): ${String(e)}
+            ---
+            e.stack: ${e.stack}
+          </pre>
+        `;
+      }
+    }
+    main();
+  </script>
+</body>
+</html>
