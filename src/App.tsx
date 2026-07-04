@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import CodeMirror, { keymap, ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
 import { javascript } from "@codemirror/lang-javascript";
@@ -59,6 +59,16 @@ import {
   type Language,
   type Snippet,
 } from "./snippetStore";
+import {
+  JS_SNIPPETS,
+  PYTHON_SNIPPETS,
+  getCustomSnippets,
+  saveCustomSnippet,
+  deleteCustomSnippet,
+  toCompletion,
+  type CustomSnippetEntry,
+} from "./snippets";
+import { buildEnterSnippetKeymap } from "./snippetExpander";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -257,6 +267,14 @@ export default function App() {
   const [generatePrompt, setGeneratePrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [explainingError, setExplainingError] = useState<string | null>(null);
+
+  // Custom snippets state
+  const [customSnippets, setCustomSnippets] = useState<CustomSnippetEntry[]>(
+    () => getCustomSnippets(),
+  );
+  const [newSnippetTrigger, setNewSnippetTrigger] = useState("");
+  const [newSnippetTemplate, setNewSnippetTemplate] = useState("");
+  const [settingsTab, setSettingsTab] = useState<"ai" | "snippets">("ai");
 
   const { settings, updateSettings } = useSettings();
 
@@ -525,17 +543,37 @@ export default function App() {
 
   const isRunDisabled = lang === "python" ? isLoading || isRunning : isRunning;
 
+  // Build snippet completions + Enter expander, recomputed when lang or custom snippets change
+  const snippetExtensions = useMemo(() => {
+    const builtins = lang === "python" ? PYTHON_SNIPPETS : JS_SNIPPETS;
+    const customs = customSnippets
+      .filter((s) => s.language === lang)
+      .map((s) => ({ trigger: s.trigger, template: s.template, detail: s.detail }));
+    const allSnippets = [...builtins, ...customs];
+    return [
+      // Show snippets as suggestions in the autocomplete dropdown
+      autocompletion({
+        override: [
+          () => ({
+            from: 0,
+            options: allSnippets.map(toCompletion),
+            validFor: /^\w*$/,
+          }),
+          lang === "python" ? pythonCompletions : jsCompletions,
+          completeAnyWord,
+        ],
+        activateOnTyping: true,
+      }),
+      // Enter key expander (takes priority — runs before defaultKeymap)
+      buildEnterSnippetKeymap(allSnippets),
+    ];
+  }, [lang, customSnippets]);
+
   const extensions = [
     lang === "python"
       ? python()
       : javascript({ jsx: false, typescript: false }),
-    autocompletion({
-      override: [
-        lang === "python" ? pythonCompletions : jsCompletions,
-        completeAnyWord
-      ],
-      activateOnTyping: true,
-    }),
+    ...snippetExtensions,
     errorHighlighter,
     errorLineTheme,
     keymap.of([
@@ -692,77 +730,155 @@ export default function App() {
                 <SettingsIcon size={14} />
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>Settings</DialogTitle>
                 <DialogDescription>
-                  Configure AI providers for error explanations and
-                  autocomplete.
+                  Configure AI providers and manage code snippets.
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-2">
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold">AI Provider</label>
-                  <Select
-                    value={settings.aiProvider}
-                    onValueChange={(val: any) =>
-                      updateSettings({ aiProvider: val })
-                    }
-                  >
-                    <SelectTrigger className="text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="gemini" className="text-xs">
-                        Google Gemini
-                      </SelectItem>
-                      <SelectItem value="groq" className="text-xs">
-                        Groq (Llama 3)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
 
-                {settings.aiProvider === "gemini" && (
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold">
-                      Gemini API Key
-                    </label>
-                    <Input
-                      type="password"
-                      value={settings.geminiApiKey}
-                      onChange={(e) =>
-                        updateSettings({ geminiApiKey: e.target.value })
-                      }
-                      placeholder="AIzaSy..."
-                      className="text-xs font-mono"
-                    />
-                    <p className="text-[10px] text-muted-foreground">
-                      Keys are stored locally in your browser.
-                    </p>
-                  </div>
-                )}
-
-                {settings.aiProvider === "groq" && (
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold">
-                      Groq API Key
-                    </label>
-                    <Input
-                      type="password"
-                      value={settings.groqApiKey}
-                      onChange={(e) =>
-                        updateSettings({ groqApiKey: e.target.value })
-                      }
-                      placeholder="gsk_..."
-                      className="text-xs font-mono"
-                    />
-                    <p className="text-[10px] text-muted-foreground">
-                      Keys are stored locally in your browser.
-                    </p>
-                  </div>
-                )}
+              {/* Tab switcher */}
+              <div className="flex gap-1 bg-muted/30 rounded-lg p-1 border border-border/40">
+                <button
+                  className={"flex-1 px-3 py-1.5 rounded-md text-xs font-semibold transition-all " + (settingsTab === "ai" ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-foreground")}
+                  onClick={() => setSettingsTab("ai")}
+                >AI Provider</button>
+                <button
+                  className={"flex-1 px-3 py-1.5 rounded-md text-xs font-semibold transition-all " + (settingsTab === "snippets" ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:text-foreground")}
+                  onClick={() => setSettingsTab("snippets")}
+                >Snippets</button>
               </div>
+
+              {settingsTab === "ai" && (
+                <div className="space-y-4 py-2">
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold">AI Provider</label>
+                    <Select
+                      value={settings.aiProvider}
+                      onValueChange={(val: any) =>
+                        updateSettings({ aiProvider: val })
+                      }
+                    >
+                      <SelectTrigger className="text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="gemini" className="text-xs">
+                          Google Gemini
+                        </SelectItem>
+                        <SelectItem value="groq" className="text-xs">
+                          Groq (Llama 3)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {settings.aiProvider === "gemini" && (
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold">Gemini API Key</label>
+                      <Input
+                        type="password"
+                        value={settings.geminiApiKey}
+                        onChange={(e) => updateSettings({ geminiApiKey: e.target.value })}
+                        placeholder="AIzaSy..."
+                        className="text-xs font-mono"
+                      />
+                      <p className="text-[10px] text-muted-foreground">Keys are stored locally in your browser.</p>
+                    </div>
+                  )}
+
+                  {settings.aiProvider === "groq" && (
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold">Groq API Key</label>
+                      <Input
+                        type="password"
+                        value={settings.groqApiKey}
+                        onChange={(e) => updateSettings({ groqApiKey: e.target.value })}
+                        placeholder="gsk_..."
+                        className="text-xs font-mono"
+                      />
+                      <p className="text-[10px] text-muted-foreground">Keys are stored locally in your browser.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {settingsTab === "snippets" && (
+                <div className="space-y-4 py-2">
+                  {/* Built-in snippets reference */}
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Built-in ({lang})</p>
+                    <div className="max-h-36 overflow-y-auto rounded-lg border border-border/40 divide-y divide-border/40">
+                      {(lang === "python" ? PYTHON_SNIPPETS : JS_SNIPPETS).map((s) => (
+                        <div key={s.trigger} className="flex items-center justify-between px-3 py-1.5 text-xs">
+                          <code className="font-mono text-primary font-bold">{s.trigger}</code>
+                          <span className="text-muted-foreground ml-2 truncate">{s.detail}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Custom snippets */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">My Snippets</p>
+                    {customSnippets.filter(s => s.language === lang).length > 0 ? (
+                      <div className="max-h-28 overflow-y-auto rounded-lg border border-border/40 divide-y divide-border/40">
+                        {customSnippets.filter(s => s.language === lang).map((s) => (
+                          <div key={s.id} className="flex items-center justify-between px-3 py-1.5 text-xs group">
+                            <code className="font-mono text-emerald-400 font-bold">{s.trigger}</code>
+                            <span className="text-muted-foreground ml-2 truncate flex-1">{s.detail || s.template.slice(0, 30)}</span>
+                            <button
+                              className="ml-2 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-opacity"
+                              onClick={() => {
+                                deleteCustomSnippet(s.id);
+                                setCustomSnippets(getCustomSnippets());
+                              }}
+                              title="Delete"
+                            ><X size={11} /></button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-muted-foreground italic px-1">No custom snippets yet.</p>
+                    )}
+                  </div>
+
+                  {/* Add new snippet */}
+                  <div className="space-y-2 border-t border-border/40 pt-3">
+                    <p className="text-xs font-semibold">Add Snippet</p>
+                    <Input
+                      placeholder="Trigger word (e.g. mylog)"
+                      value={newSnippetTrigger}
+                      onChange={e => setNewSnippetTrigger(e.target.value)}
+                      className="text-xs font-mono h-8"
+                    />
+                    <textarea
+                      placeholder={`Template (e.g. console.log(\${}))`}
+                      value={newSnippetTemplate}
+                      onChange={e => setNewSnippetTemplate(e.target.value)}
+                      className="w-full h-20 p-2 text-xs font-mono rounded-md border border-border/40 bg-background resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                    <Button
+                      size="sm"
+                      className="w-full h-8 text-xs"
+                      disabled={!newSnippetTrigger.trim() || !newSnippetTemplate.trim()}
+                      onClick={() => {
+                        saveCustomSnippet({
+                          language: lang,
+                          trigger: newSnippetTrigger.trim(),
+                          template: newSnippetTemplate,
+                          detail: `Custom: ${newSnippetTrigger.trim()}`,
+                        });
+                        setCustomSnippets(getCustomSnippets());
+                        setNewSnippetTrigger("");
+                        setNewSnippetTemplate("");
+                      }}
+                    >Add Snippet</Button>
+                    <p className="text-[10px] text-muted-foreground">Use <code className="font-mono">{'${}'}</code> for cursor position, <code className="font-mono">{'${name}'}</code> for named tab stops.</p>
+                  </div>
+                </div>
+              )}
             </DialogContent>
           </Dialog>
 
