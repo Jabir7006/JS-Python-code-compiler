@@ -550,15 +550,29 @@ export default function App() {
       .filter((s) => s.language === lang)
       .map((s) => ({ trigger: s.trigger, template: s.template, detail: s.detail }));
     const allSnippets = [...builtins, ...customs];
+
+    // Proper completion source: only suggest snippets that match the typed prefix.
+    // Requires at least 2 characters before auto-activating to avoid flooding
+    // the dropdown on every keystroke.
+    const snippetSource = (context: any) => {
+      const word = context.matchBefore(/\w+/);
+      if (!word || word.from === word.to) return null;
+      // Auto-activate only after ≥2 chars; allow explicit (Ctrl+Space) for any length
+      if (!context.explicit && word.text.length < 2) return null;
+
+      const typed = word.text;
+      const matching = allSnippets
+        .filter((s) => s.trigger.startsWith(typed))
+        .map(toCompletion);
+
+      if (matching.length === 0) return null;
+      return { from: word.from, options: matching, validFor: /^\w*$/ };
+    };
+
     return [
-      // Show snippets as suggestions in the autocomplete dropdown
       autocompletion({
         override: [
-          () => ({
-            from: 0,
-            options: allSnippets.map(toCompletion),
-            validFor: /^\w*$/,
-          }),
+          snippetSource,
           lang === "python" ? pythonCompletions : jsCompletions,
           completeAnyWord,
         ],
@@ -568,6 +582,7 @@ export default function App() {
       buildEnterSnippetKeymap(allSnippets),
     ];
   }, [lang, customSnippets]);
+
 
   const extensions = [
     lang === "python"
